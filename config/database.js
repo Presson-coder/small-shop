@@ -1,16 +1,16 @@
 import { Pool } from "pg";
 
 const pool = new Pool({
-  user: "your_username",
-  host: "localhost",
-  database: "your_database",
-  password: "your_password",
-  port: 5432,
+  user: process.env.DB_USER ?? "",
+  host: process.env.DB_HOST ?? "",
+  database: process.env.DB_NAME ?? "",
+  password: process.env.DB_PASSWORD ?? "",
+  port: parseInt(process.env.DB_PORT ?? "5432", 10) || 5432,
 });
 
 export const query = (text, params) => pool.query(text, params);
 
-export const connect = async () => {
+export const connectToDatabase = async () => {
   try {
     await pool.connect();
     console.log("Connected to the PostgreSQL database");
