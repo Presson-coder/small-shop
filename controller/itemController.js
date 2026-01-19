@@ -5,7 +5,6 @@ export const itemController = {
     try {
       const { name, description, price, category, stock_quantity } = req.body;
 
-      // Basic validation
       if (!name || !price) {
         return res.status(400).json({
           message: "Name and price are required",
