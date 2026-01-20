@@ -1,96 +1,96 @@
-name: CloudPilot Deploy - small-shop-app-demo
+        name: CloudPilot Deploy - small-shop-app-demo
 
-on:
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment environment'
-        required: false
-        default: 'production'
+        on:
+          workflow_dispatch:
+            inputs:
+              environment:
+                description: 'Deployment environment'
+                required: false
+                default: 'production'
 
-env:
-  AWS_REGION: eu-north-1
-  ECR_REGISTRY: 077451504038.dkr.ecr.eu-north-1.amazonaws.com
-  ECR_REPOSITORY: small-shop-app-demo
-  EKS_CLUSTER_NAME: dev-cluster
-  K8S_NAMESPACE: dev
-  APP_NAME: small-shop-app-demo
+        env:
+          AWS_REGION: eu-north-1
+          ECR_REGISTRY: 077451504038.dkr.ecr.eu-north-1.amazonaws.com
+          ECR_REPOSITORY: small-shop-app-demo
+          EKS_CLUSTER_NAME: dev-cluster
+          K8S_NAMESPACE: dev
+          APP_NAME: small-shop-app-demo
 
-jobs:
-  build-and-deploy:
-    name: Build and Deploy to AWS
-    runs-on: ubuntu-latest
+        jobs:
+          build-and-deploy:
+            name: Build and Deploy to AWS
+            runs-on: ubuntu-latest
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+            steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-    - name: Verify AWS credentials
-      run: |
-        echo "🔍 Verifying AWS credentials..."
-        aws sts get-caller-identity
-        echo "✅ AWS credentials are working!"
+            - name: Verify AWS credentials
+              run: |
+                echo "🔍 Verifying AWS credentials..."
+                aws sts get-caller-identity
+                echo "✅ AWS credentials are working!"
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Create ECR repository if it doesn't exist
-      run: |
-        echo "🐳 Checking ECR repository: $ECR_REPOSITORY"
-        aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
-        aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
-        echo "✅ ECR repository ready: $ECR_REPOSITORY"
+            - name: Create ECR repository if it doesn't exist
+              run: |
+                echo "🐳 Checking ECR repository: $ECR_REPOSITORY"
+                aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
+                aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
+                echo "✅ ECR repository ready: $ECR_REPOSITORY"
 
-    - name: Generate image tag
-      run: |
-        IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-8)
-        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
-        echo "📋 Generated image tag: $IMAGE_TAG"
+            - name: Generate image tag
+              run: |
+                IMAGE_TAG=$(echo ${{ github.sha }} | cut -c1-8)
+                echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+                echo "📋 Generated image tag: $IMAGE_TAG"
 
-    - name: Build Docker image
-      run: |
-        echo "🔨 Building Docker image..."
-        echo "Registry: $ECR_REGISTRY"
-        echo "Repository: $ECR_REPOSITORY"
-        echo "Image Tag: $IMAGE_TAG"
+            - name: Build Docker image
+              run: |
+                echo "🔨 Building Docker image..."
+                echo "Registry: $ECR_REGISTRY"
+                echo "Repository: $ECR_REPOSITORY"
+                echo "Image Tag: $IMAGE_TAG"
 
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
 
-        echo "✅ Docker image built successfully"
+                echo "✅ Docker image built successfully"
 
-    - name: Push image to Amazon ECR
-      run: |
-        echo "📦 Pushing Docker image to ECR..."
-        echo "Pushing: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-        echo "Pushing: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
+            - name: Push image to Amazon ECR
+              run: |
+                echo "📦 Pushing Docker image to ECR..."
+                echo "Pushing: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+                echo "Pushing: $ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-        echo "✅ Images pushed successfully to ECR"
+                echo "✅ Images pushed successfully to ECR"
 
-    - name: Configure kubectl
-      run: |
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x kubectl
-        sudo mv kubectl /usr/local/bin/
+            - name: Configure kubectl
+              run: |
+                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                chmod +x kubectl
+                sudo mv kubectl /usr/local/bin/
 
-        aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+                aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
 
-        echo "🔍 Testing kubectl connection..."
-        kubectl cluster-info
-        kubectl get nodes
+                echo "🔍 Testing kubectl connection..."
+                kubectl cluster-info
+                kubectl get nodes
 
-    - name: Deploy to Kubernetes
+            - name: Deploy to Kubernetes
               run: |
                 kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
 
@@ -167,99 +167,99 @@ jobs:
                           periodSeconds: 5
                           timeoutSeconds: 3
                           failureThreshold: 3
-        ---
-        apiVersion: v1
-        kind: Service
-        metadata:
-          name: $APP_NAME-service
-          namespace: $K8S_NAMESPACE
-          labels:
-            app: $APP_NAME
-        spec:
-          selector:
-            app: $APP_NAME
-          ports:
-          - protocol: TCP
-            port: 80
-            targetPort: 3000
-            name: http
-          type: ClusterIP
-        ---
-        apiVersion: v1
-        kind: Service
-        metadata:
-          name: $APP_NAME-lb
-          namespace: $K8S_NAMESPACE
-          labels:
-            app: $APP_NAME
-          annotations:
-            service.beta.kubernetes.io/aws-load-balancer-type: nlb
-            service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-        spec:
-          selector:
-            app: $APP_NAME
-          ports:
-          - protocol: TCP
-            port: 80
-            targetPort: 3000
-            name: http
-          type: LoadBalancer
-        EOF
+                ---
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: $APP_NAME-service
+                  namespace: $K8S_NAMESPACE
+                  labels:
+                    app: $APP_NAME
+                spec:
+                  selector:
+                    app: $APP_NAME
+                  ports:
+                  - protocol: TCP
+                    port: 80
+                    targetPort: 3000
+                    name: http
+                  type: ClusterIP
+                ---
+                apiVersion: v1
+                kind: Service
+                metadata:
+                  name: $APP_NAME-lb
+                  namespace: $K8S_NAMESPACE
+                  labels:
+                    app: $APP_NAME
+                  annotations:
+                    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+                    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+                spec:
+                  selector:
+                    app: $APP_NAME
+                  ports:
+                  - protocol: TCP
+                    port: 80
+                    targetPort: 3000
+                    name: http
+                  type: LoadBalancer
+                EOF
 
-    - name: Debug Environment Variables
-      run: |
-        echo "🔍 Environment variables passed to deployment:"
-        echo "DATABASE_URL: ${DATABASE_URL:-'NOT_SET'}"
-        echo "NODE_ENV: ${NODE_ENV:-'NOT_SET'}"
-        echo "PORT: ${PORT:-'NOT_SET'}"
+            - name: Debug Environment Variables
+              run: |
+                echo "🔍 Environment variables passed to deployment:"
+                echo "DATABASE_URL: ${DATABASE_URL:-'NOT_SET'}"
+                echo "NODE_ENV: ${NODE_ENV:-'NOT_SET'}"
+                echo "PORT: ${PORT:-'NOT_SET'}"
 
-        echo "🔍 Checking Kubernetes deployment environment:"
-        kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].env}'
+                echo "🔍 Checking Kubernetes deployment environment:"
+                kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].env}'
 
-    - name: Debug deployment status
-      run: |
-        echo "🔍 Debugging deployment status..."
-        kubectl get nodes -o wide
-        echo "--- Pod Status ---"
-        kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o wide
-        echo "--- Deployment Status ---"
-        kubectl describe deployment $APP_NAME -n $K8S_NAMESPACE
-        echo "--- Events ---"
-        kubectl get events -n $K8S_NAMESPACE --sort-by='.lastTimestamp'
+            - name: Debug deployment status
+              run: |
+                echo "🔍 Debugging deployment status..."
+                kubectl get nodes -o wide
+                echo "--- Pod Status ---"
+                kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o wide
+                echo "--- Deployment Status ---"
+                kubectl describe deployment $APP_NAME -n $K8S_NAMESPACE
+                echo "--- Events ---"
+                kubectl get events -n $K8S_NAMESPACE --sort-by='.lastTimestamp'
 
-    - name: Wait for deployment rollout
-      run: |
-        echo "⏳ Waiting for deployment to be ready..."
-        kubectl rollout status deployment/$APP_NAME -n $K8S_NAMESPACE --timeout=900s || {
-          echo "❌ Deployment rollout failed or timed out"
-          echo "🔍 Final debugging information:"
-          kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o yaml
-          kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o yaml
-          kubectl get events -n $K8S_NAMESPACE --sort-by='.lastTimestamp'
-          exit 1
-        }
-        echo "✅ Deployment rollout completed successfully"
+            - name: Wait for deployment rollout
+              run: |
+                echo "⏳ Waiting for deployment to be ready..."
+                kubectl rollout status deployment/$APP_NAME -n $K8S_NAMESPACE --timeout=900s || {
+                  echo "❌ Deployment rollout failed or timed out"
+                  echo "🔍 Final debugging information:"
+                  kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o yaml
+                  kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o yaml
+                  kubectl get events -n $K8S_NAMESPACE --sort-by='.lastTimestamp'
+                  exit 1
+                }
+                echo "✅ Deployment rollout completed successfully"
 
-    - name: Run application health check
-      run: |
-        echo "🔍 Testing application health..."
-        sleep 30
+            - name: Run application health check
+              run: |
+                echo "🔍 Testing application health..."
+                sleep 30
 
-        LB_URL=$(kubectl get service $APP_NAME-lb -n $K8S_NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+                LB_URL=$(kubectl get service $APP_NAME-lb -n $K8S_NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
 
-        if [[ -n "$LB_URL" ]]; then
-          echo "📋 LoadBalancer URL: http://$LB_URL"
+                if [[ -n "$LB_URL" ]]; then
+                  echo "📋 LoadBalancer URL: http://$LB_URL"
 
-          for i in {1..5}; do
-            echo "Attempt $i: Testing http://$LB_URL"
-            if curl -f -s -o /dev/null --max-time 10 http://$LB_URL; then
-              echo "✅ Application is responding!"
-              break
-            fi
-            echo "⏳ Waiting 30 seconds before retry..."
-            sleep 30
-          done
-        else
-          echo "⚠️ LoadBalancer URL not available yet"
-        fi
+                  for i in {1..5}; do
+                    echo "Attempt $i: Testing http://$LB_URL"
+                    if curl -f -s -o /dev/null --max-time 10 http://$LB_URL; then
+                      echo "✅ Application is responding!"
+                      break
+                    fi
+                    echo "⏳ Waiting 30 seconds before retry..."
+                    sleep 30
+                  done
+                else
+                  echo "⚠️ LoadBalancer URL not available yet"
+                fi
 
