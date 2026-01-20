@@ -121,19 +121,22 @@ jobs:
                 app: $APP_NAME
                 version: "$IMAGE_TAG"
             spec:
-              containers:
-              - name: $APP_NAME
-                image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-                imagePullPolicy: Always
-                ports:
-                - containerPort: 3000
-                  name: http
-                env:
-                - name: NODE_ENV
-                  value: production
-                - name: PORT
-                  value: "3000"
-                resources:
+                      containers:
+                      - name: $APP_NAME
+                        image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+                        imagePullPolicy: Always
+                        ports:
+                        - containerPort: 3000
+                          name: http
+                        env:
+                        - name: DATABASE_URL
+                          value: "postgresql://neondb_owner:npg_RTmGB4Yf5Fvu@ep-spring-breeze-aglp3gi5-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+                        - name: PORT
+                          value: "3000"
+                        - name: NODE_ENV
+                          value: "production"
+
+                        resources:
                   requests:
                     memory: "128Mi"
                     cpu: "125m"
@@ -202,6 +205,16 @@ jobs:
             name: http
           type: LoadBalancer
         EOF
+
+    - name: Debug Environment Variables
+      run: |
+        echo "🔍 Environment variables passed to deployment:"
+        echo "DATABASE_URL: ${DATABASE_URL:-'NOT_SET'}"
+        echo "NODE_ENV: ${NODE_ENV:-'NOT_SET'}"
+        echo "PORT: ${PORT:-'NOT_SET'}"
+
+        echo "🔍 Checking Kubernetes deployment environment:"
+        kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o jsonpath='{.spec.template.spec.containers[0].env}'
 
     - name: Debug deployment status
       run: |
