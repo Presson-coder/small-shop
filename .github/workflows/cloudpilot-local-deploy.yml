@@ -1,0 +1,119 @@
+              name: CloudPilot Local Deploy - small-shop-app-demo
+
+              on:
+                workflow_dispatch:
+                  inputs:
+                    environment:
+                      description: 'Deployment environment'
+                      required: false
+                      default: 'local'
+
+              env:
+                APP_NAME: small-shop-app-demo
+                K8S_NAMESPACE: dev
+
+              jobs:
+                local-deploy:
+                  name: Build and Deploy to Minikube
+                  runs-on: ubuntu-latest
+
+                  steps:
+                  - name: Checkout code
+                    uses: actions/checkout@v4
+
+                  - name: Setup Minikube
+                    uses: medyagh/setup-minikube@v0.0.14
+                    with:
+                      minikube-version: 1.32.0
+                      kubernetes-version: 1.28.3
+                      driver: docker
+                      container-runtime: docker
+                      start-args: '--memory=4096 --cpus=2'
+
+                  - name: Verify Minikube
+                    run: |
+                      minikube status
+                      kubectl cluster-info
+                      kubectl get nodes
+
+                  - name: Deploy PostgreSQL
+                    if: ${{ !contains(github.event.inputs.skip_db_deployment || '', 'true') }}
+                    run: |
+                      kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+
+                      cat <<EOF | kubectl apply -f -
+                      apiVersion: apps/v1
+                      kind: Deployment
+                      metadata:
+                        name: postgres
+                        namespace: $K8S_NAMESPACE
+                        labels:
+                          app: postgres
+                          managed-by: cloudpilot
+                      spec:
+                        replicas: 1
+                        selector:
+                          matchLabels:
+                            app: postgres
+                        template:
+                          metadata:
+                            labels:
+                              app: postgres
+                          spec:
+                            containers:
+                            - name: postgres
+                              image: postgres:15-alpine
+                              env:
+                              - name: POSTGRES_DB
+                                value: "small_shop"
+                              - name: POSTGRES_USER
+                                value: "postgres"
+                              - name: POSTGRES_PASSWORD
+                                value: "password"
+
+                              ports:
+                              - containerPort: 5432
+                              volumeMounts:
+                              - name: postgres-storage
+                                mountPath: /var/lib/postgresql/data
+                              readinessProbe:
+                                exec:
+                                  command:
+                                  - pg_isready
+                                  - -U
+                                  - postgres
+                                initialDelaySeconds: 5
+                                periodSeconds: 5
+                              livenessProbe:
+                                exec:
+                                  command:
+                                  - pg_isready
+                                  - -U
+                                  - postgres
+                                initialDelaySeconds: 30
+                                periodSeconds: 10
+                            volumes:
+                            - name: postgres-storage
+                              emptyDir: {}
+                      ---
+                      apiVersion: v1
+                      kind: Service
+                      metadata:
+                        name: postgres-service
+                        namespace: $K8S_NAMESPACE
+                        labels:
+                          app: postgres
+                      spec:
+                        selector:
+                          app: postgres
+                        ports:
+                        - port: 5432
+                          targetPort: 5432
+                        type: ClusterIP
+                      EOF
+
+                      echo "⏳ Waiting for PostgreSQL to be ready..."
+                      kubectl wait --for=condition=ready pod -l app=postgres -n $K8S_NAMESPACE --timeout=120s
+
+                  # ... rest of the workflow remains the same ...
+
