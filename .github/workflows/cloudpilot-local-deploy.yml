@@ -11,7 +11,7 @@ on:
 env:
   APP_NAME: small-shop-app-demo
   K8S_NAMESPACE: dev
-  IMAGE_TAG: v1769511764910
+  IMAGE_TAG: v1769512570689
 
 jobs:
   local-deploy:
@@ -127,7 +127,7 @@ jobs:
         docker build -t $APP_NAME:latest .
 
         echo "✅ Image built in Minikube Docker daemon"
-        docker images | grep $APP_NAME
+        docker images | grep $APP_NAME || echo "⚠️ Image not found in minikube docker"
 
     - name: Deploy to Minikube
       run: |
@@ -159,7 +159,7 @@ jobs:
                   name: http
                 env:
                         - name: DATABASE_URL
-                          value: "postgresql://postgres:password%2540123%2525%2540host.minikube.internal:5433/small_shop"
+                          value: "postgresql://postgres:password%40123%25@host.minikube.internal:5433/small_shop"
                         - name: PORT
                           value: "3000"
 
@@ -174,14 +174,18 @@ jobs:
                   httpGet:
                     path: /
                     port: 3000
-                  initialDelaySeconds: 10
-                  periodSeconds: 5
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
                 livenessProbe:
                   httpGet:
                     path: /
                     port: 3000
-                  initialDelaySeconds: 30
+                  initialDelaySeconds: 60
                   periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
         ---
         apiVersion: v1
         kind: Service
@@ -217,13 +221,82 @@ jobs:
           type: NodePort
         EOF
 
-    - name: Wait for deployment
+    - name: Debug deployment before waiting
+      run: |
+        echo "🔍 Deployment created, checking initial status..."
+        kubectl get deployment $APP_NAME -n $K8S_NAMESPACE
+        kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME
+        kubectl get events -n $K8S_NAMESPACE --sort-by='.lastTimestamp' | tail -10
+
+    - name: Wait for deployment with detailed monitoring
       run: |
         echo "⏳ Waiting for application to be ready..."
-        kubectl wait --for=condition=available deployment/$APP_NAME -n $K8S_NAMESPACE --timeout=300s
 
-        echo "✅ Deployment ready!"
-        kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME
+        # Wait for deployment to be available with timeout
+        timeout 300 bash -c '
+          while true; do
+            READY_REPLICAS=$(kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o jsonpath="{.status.readyReplicas}")
+            DESIRED_REPLICAS=$(kubectl get deployment $APP_NAME -n $K8S_NAMESPACE -o jsonpath="{.spec.replicas}")
+
+            echo "📊 Deployment status: Ready=$READY_REPLICAS, Desired=$DESIRED_REPLICAS"
+
+            if [ "$READY_REPLICAS" = "$DESIRED_REPLICAS" ] && [ "$READY_REPLICAS" != "" ]; then
+              echo "✅ Deployment is ready!"
+              break
+            fi
+
+            echo "📋 Pod status:"
+            kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME
+
+            echo "📋 Recent events:"
+            kubectl get events -n $K8S_NAMESPACE --sort-by=".lastTimestamp" | tail -5
+
+            sleep 10
+          done
+        ' || {
+          echo "❌ Deployment failed or timed out"
+          echo "🔍 Final debugging information:"
+
+          echo "--- Deployment Status ---"
+          kubectl describe deployment $APP_NAME -n $K8S_NAMESPACE
+
+          echo "--- Pod Status ---"
+          kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o wide
+          kubectl describe pods -n $K8S_NAMESPACE -l app=$APP_NAME
+
+          echo "--- Pod Logs ---"
+          for pod in $(kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o jsonpath="{.items[*].metadata.name}"); do
+            echo "Logs for pod $pod:"
+            kubectl logs $pod -n $K8S_NAMESPACE --tail=50
+          done
+
+          echo "--- Events ---"
+          kubectl get events -n $K8S_NAMESPACE --sort-by=".lastTimestamp"
+
+          echo "--- Docker Images ---"
+          eval $(minikube docker-env)
+          docker images | grep $APP_NAME
+
+          exit 1
+        }
+
+    - name: Verify deployment health
+      run: |
+        echo "🏥 Verifying deployment health..."
+
+        # Check pod status
+        kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o wide
+
+        # Check if pods are actually running
+        POD_STATUS=$(kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME -o jsonpath='{.items[0].status.phase}')
+        echo "📋 Pod status: $POD_STATUS"
+
+        if [ "$POD_STATUS" != "Running" ]; then
+          echo "⚠️ Pod is not running, checking logs..."
+          kubectl logs -n $K8S_NAMESPACE -l app=$APP_NAME --tail=50
+        else
+          echo "✅ Pod is running successfully"
+        fi
 
     - name: Test Database Connection
       run: |
@@ -264,32 +337,27 @@ jobs:
         echo "🗄️ Database:"
         echo "  📊 PostgreSQL running inside Minikube"
         echo "  🔗 Connection: postgres-service:5432"
-        echo ""
-        echo "🧪 Quick test commands:"
-        echo "  curl http://$MINIKUBE_IP:$NODE_PORT"
-        echo "  curl http://$MINIKUBE_IP:$NODE_PORT/health"
 
-    - name: Test deployment
+    - name: Test deployment connectivity
       run: |
         # Get the service URL
         SERVICE_URL=$(minikube service $APP_NAME-nodeport -n $K8S_NAMESPACE --url)
         echo "🧪 Testing deployment at: $SERVICE_URL"
 
         # Wait a bit for service to be ready
-        sleep 10
+        sleep 15
 
-        # Test root endpoint
-        if curl -f -s "$SERVICE_URL" > /dev/null; then
-          echo "✅ Root endpoint responding"
-          curl -s "$SERVICE_URL" | head -5
-        else
-          echo "⚠️ Root endpoint not ready yet"
-        fi
-
-        # Test health endpoint if it exists
-        if curl -f -s "$SERVICE_URL/health" > /dev/null 2>&1; then
-          echo "✅ Health endpoint responding"
-        else
-          echo "ℹ️ Health endpoint not available"
-        fi
+        # Test root endpoint with more robust checking
+        echo "Testing connectivity..."
+        for i in {1..5}; do
+          echo "Attempt $i:"
+          if curl -f -s --max-time 10 "$SERVICE_URL" > /dev/null; then
+            echo "✅ Root endpoint responding"
+            curl -s --max-time 10 "$SERVICE_URL" | head -5
+            break
+          else
+            echo "⚠️ Attempt $i failed, retrying in 10 seconds..."
+            sleep 10
+          fi
+        done
 
