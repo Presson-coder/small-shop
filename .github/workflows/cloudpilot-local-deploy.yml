@@ -1,69 +1,69 @@
-              name: CloudPilot Local Deploy - small-shop-app-demo
+                      name: CloudPilot Local Deploy - small-shop-app-demo
 
-              on:
-                workflow_dispatch:
-                  inputs:
-                    environment:
-                      description: 'Deployment environment'
-                      required: false
-                      default: 'local'
+                      on:
+                        workflow_dispatch:
+                          inputs:
+                            environment:
+                              description: 'Deployment environment'
+                              required: false
+                              default: 'local'
 
-              env:
-                APP_NAME: small-shop-app-demo
-                K8S_NAMESPACE: dev
+                      env:
+                        APP_NAME: small-shop-app-demo
+                        K8S_NAMESPACE: dev
+                        IMAGE_TAG: v1769510829237
 
-              jobs:
-                local-deploy:
-                  name: Build and Deploy to Minikube
-                  runs-on: ubuntu-latest
+                      jobs:
+                        local-deploy:
+                          name: Build and Deploy to Minikube
+                          runs-on: ubuntu-latest
 
-                  steps:
-                  - name: Checkout code
-                    uses: actions/checkout@v4
+                          steps:
+                          - name: Checkout code
+                            uses: actions/checkout@v4
 
-                  - name: Setup Minikube
-                    uses: medyagh/setup-minikube@v0.0.14
-                    with:
-                      minikube-version: 1.32.0
-                      kubernetes-version: 1.28.3
-                      driver: docker
-                      container-runtime: docker
-                      start-args: '--memory=4096 --cpus=2'
+                          - name: Setup Minikube
+                            uses: medyagh/setup-minikube@v0.0.14
+                            with:
+                              minikube-version: 1.32.0
+                              kubernetes-version: 1.28.3
+                              driver: docker
+                              container-runtime: docker
+                              start-args: '--memory=4096 --cpus=2'
 
-                  - name: Verify Minikube
-                    run: |
-                      minikube status
-                      kubectl cluster-info
-                      kubectl get nodes
+                          - name: Verify Minikube
+                            run: |
+                              minikube status
+                              kubectl cluster-info
+                              kubectl get nodes
 
-                  - name: Deploy PostgreSQL
-                    if: ${{ !contains(github.event.inputs.skip_db_deployment || '', 'true') }}
-                    run: |
-                      kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+                          - name: Deploy PostgreSQL
+                            run: |
+                              kubectl create namespace $K8S_NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
 
-                      cat <<EOF | kubectl apply -f -
-                      apiVersion: apps/v1
-                      kind: Deployment
-                      metadata:
-                        name: postgres
-                        namespace: $K8S_NAMESPACE
-                        labels:
-                          app: postgres
-                          managed-by: cloudpilot
-                      spec:
-                        replicas: 1
-                        selector:
-                          matchLabels:
-                            app: postgres
-                        template:
-                          metadata:
-                            labels:
-                              app: postgres
-                          spec:
-                            containers:
-                            - name: postgres
-                              image: postgres:15-alpine
-                              env:
+                              cat <<EOF | kubectl apply -f -
+                              apiVersion: apps/v1
+                              kind: Deployment
+                              metadata:
+                                name: postgres
+                                namespace: $K8S_NAMESPACE
+                                labels:
+                                  app: postgres
+                                  managed-by: cloudpilot
+                              spec:
+                                replicas: 1
+                                selector:
+                                  matchLabels:
+                                    app: postgres
+                                template:
+                                  metadata:
+                                    labels:
+                                      app: postgres
+                                  spec:
+                                    containers:
+                                    - name: postgres
+                                      image: postgres:15-alpine
+                                      env:
                               - name: POSTGRES_DB
                                 value: "small_shop"
                               - name: POSTGRES_USER
@@ -71,49 +71,225 @@
                               - name: POSTGRES_PASSWORD
                                 value: "password@123%"
 
-                              ports:
-                              - containerPort: 5432
-                              volumeMounts:
-                              - name: postgres-storage
-                                mountPath: /var/lib/postgresql/data
-                              readinessProbe:
-                                exec:
-                                  command:
-                                  - pg_isready
-                                  - -U
-                                  - postgres
-                                initialDelaySeconds: 5
-                                periodSeconds: 5
-                              livenessProbe:
-                                exec:
-                                  command:
-                                  - pg_isready
-                                  - -U
-                                  - postgres
-                                initialDelaySeconds: 30
-                                periodSeconds: 10
-                            volumes:
-                            - name: postgres-storage
-                              emptyDir: {}
-                      ---
-                      apiVersion: v1
-                      kind: Service
-                      metadata:
-                        name: postgres-service
-                        namespace: $K8S_NAMESPACE
-                        labels:
-                          app: postgres
-                      spec:
-                        selector:
-                          app: postgres
-                        ports:
-                        - port: 5432
-                          targetPort: 5432
-                        type: ClusterIP
-                      EOF
+                                      ports:
+                                      - containerPort: 5432
+                                      volumeMounts:
+                                      - name: postgres-storage
+                                        mountPath: /var/lib/postgresql/data
+                                      readinessProbe:
+                                        exec:
+                                          command:
+                                          - pg_isready
+                                          - -U
+                                          - postgres
+                                        initialDelaySeconds: 5
+                                        periodSeconds: 5
+                                      livenessProbe:
+                                        exec:
+                                          command:
+                                          - pg_isready
+                                          - -U
+                                          - postgres
+                                        initialDelaySeconds: 30
+                                        periodSeconds: 10
+                                    volumes:
+                                    - name: postgres-storage
+                                      emptyDir: {}
+                              ---
+                              apiVersion: v1
+                              kind: Service
+                              metadata:
+                                name: postgres-service
+                                namespace: $K8S_NAMESPACE
+                                labels:
+                                  app: postgres
+                              spec:
+                                selector:
+                                  app: postgres
+                                ports:
+                                - port: 5432
+                                  targetPort: 5432
+                                type: ClusterIP
+                              EOF
 
-                      echo "⏳ Waiting for PostgreSQL to be ready..."
-                      kubectl wait --for=condition=ready pod -l app=postgres -n $K8S_NAMESPACE --timeout=120s
+                              echo "⏳ Waiting for PostgreSQL to be ready..."
+                              kubectl wait --for=condition=ready pod -l app=postgres -n $K8S_NAMESPACE --timeout=120s
 
-                  # ... rest of the workflow remains the same ...
+                          - name: Build Docker image in Minikube
+                            run: |
+                              # Use minikube's docker daemon
+                              eval $(minikube docker-env)
+
+                              echo "📋 Building image with tag: $IMAGE_TAG"
+
+                              # Build directly in minikube's docker
+                              docker build -t $APP_NAME:$IMAGE_TAG .
+                              docker build -t $APP_NAME:latest .
+
+                              echo "✅ Image built in Minikube Docker daemon"
+                              docker images | grep $APP_NAME
+
+                          - name: Deploy to Minikube
+                            run: |
+                              cat <<EOF | kubectl apply -f -
+                              apiVersion: apps/v1
+                              kind: Deployment
+                              metadata:
+                                name: $APP_NAME
+                                namespace: $K8S_NAMESPACE
+                                labels:
+                                  app: $APP_NAME
+                                  environment: local
+                              spec:
+                                replicas: 1
+                                selector:
+                                  matchLabels:
+                                    app: $APP_NAME
+                                template:
+                                  metadata:
+                                    labels:
+                                      app: $APP_NAME
+                                  spec:
+                                    containers:
+                                    - name: $APP_NAME
+                                      image: $APP_NAME:$IMAGE_TAG
+                                      imagePullPolicy: Never
+                                      ports:
+                                      - containerPort: 3000
+                                        name: http
+                                      env:
+                        - name: DATABASE_URL
+                          value: "postgresql://postgres:password%2540123%2525%2540host.minikube.internal:5433/small_shop"
+                        - name: PORT
+                          value: "3000"
+
+                                      resources:
+                                        requests:
+                                          memory: "128Mi"
+                                          cpu: "125m"
+                                        limits:
+                                          memory: "512Mi"
+                                          cpu: "500m"
+                                      readinessProbe:
+                                        httpGet:
+                                          path: /
+                                          port: 3000
+                                        initialDelaySeconds: 10
+                                        periodSeconds: 5
+                                      livenessProbe:
+                                        httpGet:
+                                          path: /
+                                          port: 3000
+                                        initialDelaySeconds: 30
+                                        periodSeconds: 10
+                              ---
+                              apiVersion: v1
+                              kind: Service
+                              metadata:
+                                name: $APP_NAME-service
+                                namespace: $K8S_NAMESPACE
+                                labels:
+                                  app: $APP_NAME
+                              spec:
+                                selector:
+                                  app: $APP_NAME
+                                ports:
+                                - port: 80
+                                  targetPort: 3000
+                                  name: http
+                                type: ClusterIP
+                              ---
+                              apiVersion: v1
+                              kind: Service
+                              metadata:
+                                name: $APP_NAME-nodeport
+                                namespace: $K8S_NAMESPACE
+                                labels:
+                                  app: $APP_NAME
+                              spec:
+                                selector:
+                                  app: $APP_NAME
+                                ports:
+                                - port: 3000
+                                  targetPort: 3000
+                                  nodePort: 30080
+                                  name: http
+                                type: NodePort
+                              EOF
+
+                          - name: Wait for deployment
+                            run: |
+                              echo "⏳ Waiting for application to be ready..."
+                              kubectl wait --for=condition=available deployment/$APP_NAME -n $K8S_NAMESPACE --timeout=300s
+
+                              echo "✅ Deployment ready!"
+                              kubectl get pods -n $K8S_NAMESPACE -l app=$APP_NAME
+
+                          - name: Test Database Connection
+                            run: |
+                              echo "🧪 Testing database connection..."
+
+                              # Get a postgres pod
+                              POSTGRES_POD=$(kubectl get pods -n $K8S_NAMESPACE -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+                              echo "Testing connection to PostgreSQL pod: $POSTGRES_POD"
+
+                              # Test connection
+                              kubectl exec $POSTGRES_POD -n $K8S_NAMESPACE -- psql -U postgres -d small_shop -c "SELECT version();"
+
+                              echo "✅ Database connection test successful"
+
+                          - name: Get service URLs
+                            run: |
+                              echo "🌐 Getting service access information..."
+
+                              # Get minikube IP
+                              MINIKUBE_IP=$(minikube ip)
+                              echo "📍 Minikube IP: $MINIKUBE_IP"
+
+                              # Get NodePort
+                              NODE_PORT=$(kubectl get service $APP_NAME-nodeport -n $K8S_NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}')
+                              echo "🔌 NodePort: $NODE_PORT"
+
+                              echo ""
+                              echo "🎉 DEPLOYMENT SUCCESSFUL! 🎉"
+                              echo "================================"
+                              echo "Application: $APP_NAME"
+                              echo "Environment: Local Minikube"
+                              echo "Namespace: $K8S_NAMESPACE"
+                              echo ""
+                              echo "📍 Access URLs:"
+                              echo "  🌐 NodePort: http://$MINIKUBE_IP:$NODE_PORT"
+                              echo "  🔗 Service URL: $(minikube service $APP_NAME-nodeport -n $K8S_NAMESPACE --url)"
+                              echo ""
+                              echo "🗄️ Database:"
+                              echo "  📊 PostgreSQL running inside Minikube"
+                              echo "  🔗 Connection: postgres-service:5432"
+                              echo ""
+                              echo "🧪 Quick test commands:"
+                              echo "  curl http://$MINIKUBE_IP:$NODE_PORT"
+                              echo "  curl http://$MINIKUBE_IP:$NODE_PORT/health"
+
+                          - name: Test deployment
+                            run: |
+                              # Get the service URL
+                              SERVICE_URL=$(minikube service $APP_NAME-nodeport -n $K8S_NAMESPACE --url)
+                              echo "🧪 Testing deployment at: $SERVICE_URL"
+
+                              # Wait a bit for service to be ready
+                              sleep 10
+
+                              # Test root endpoint
+                              if curl -f -s "$SERVICE_URL" > /dev/null; then
+                                echo "✅ Root endpoint responding"
+                                curl -s "$SERVICE_URL" | head -5
+                              else
+                                echo "⚠️ Root endpoint not ready yet"
+                              fi
+
+                              # Test health endpoint if it exists
+                              if curl -f -s "$SERVICE_URL/health" > /dev/null 2>&1; then
+                                echo "✅ Health endpoint responding"
+                              else
+                                echo "ℹ️ Health endpoint not available"
+                              fi
 
