@@ -11,7 +11,7 @@ on:
 env:
   APP_NAME: small-shop-app-demo
   K8S_NAMESPACE: dev
-  IMAGE_TAG: v1769512570689
+  IMAGE_TAG: v1769512906664
 
 jobs:
   local-deploy:
@@ -65,11 +65,11 @@ jobs:
                 image: postgres:15-alpine
                 env:
                               - name: POSTGRES_DB
-                                value: "small_shop"
+                                value: "neondb"
                               - name: POSTGRES_USER
-                                value: "postgres"
+                                value: "neondb_owner"
                               - name: POSTGRES_PASSWORD
-                                value: "password@123%"
+                                value: "npg_RTmGB4Yf5Fvu"
 
                 ports:
                 - containerPort: 5432
@@ -81,7 +81,7 @@ jobs:
                     command:
                     - pg_isready
                     - -U
-                    - postgres
+                    - neondb_owner
                   initialDelaySeconds: 5
                   periodSeconds: 5
                 livenessProbe:
@@ -89,7 +89,7 @@ jobs:
                     command:
                     - pg_isready
                     - -U
-                    - postgres
+                    - neondb_owner
                   initialDelaySeconds: 30
                   periodSeconds: 10
               volumes:
@@ -159,7 +159,7 @@ jobs:
                   name: http
                 env:
                         - name: DATABASE_URL
-                          value: "postgresql://postgres:password%40123%25@host.minikube.internal:5433/small_shop"
+                          value: "postgresql://neondb_owner:npg_RTmGB4Yf5Fvu@ep-spring-breeze-aglp3gi5-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
                         - name: PORT
                           value: "3000"
 
@@ -307,7 +307,7 @@ jobs:
         echo "Testing connection to PostgreSQL pod: $POSTGRES_POD"
 
         # Test connection
-        kubectl exec $POSTGRES_POD -n $K8S_NAMESPACE -- psql -U postgres -d small_shop -c "SELECT version();"
+        kubectl exec $POSTGRES_POD -n $K8S_NAMESPACE -- psql -U neondb_owner -d neondb -c "SELECT version();"
 
         echo "✅ Database connection test successful"
 
