@@ -69,7 +69,7 @@
                               - name: POSTGRES_USER
                                 value: "postgres"
                               - name: POSTGRES_PASSWORD
-                                value: "password"
+                                value: "password@123%"
 
                               ports:
                               - containerPort: 5432
