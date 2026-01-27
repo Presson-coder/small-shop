@@ -11,7 +11,7 @@
                       env:
                         APP_NAME: small-shop-app-demo
                         K8S_NAMESPACE: dev
-                        IMAGE_TAG: v1769510829237
+                        IMAGE_TAG: v1769511118269
 
                       jobs:
                         local-deploy:
