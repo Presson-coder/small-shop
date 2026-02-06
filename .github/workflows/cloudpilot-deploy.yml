@@ -1,4 +1,4 @@
-        name: CloudPilot Deploy - small-shop-app-demo
+        name: CloudPilot Deploy - small-shop-app-scaling-test
 
         on:
           workflow_dispatch:
@@ -11,10 +11,10 @@
         env:
           AWS_REGION: eu-north-1
           ECR_REGISTRY: 077451504038.dkr.ecr.eu-north-1.amazonaws.com
-          ECR_REPOSITORY: small-shop-app-demo
+          ECR_REPOSITORY: small-shop-app-scaling-test
           EKS_CLUSTER_NAME: dev-cluster
           K8S_NAMESPACE: dev
-          APP_NAME: small-shop-app-demo
+          APP_NAME: small-shop-app-scaling-test
 
         jobs:
           build-and-deploy:
@@ -129,8 +129,8 @@
                         - containerPort: 3000
                           name: http
                         env:
-                        - name: DATABASE_URL
-                          value: "postgresql://neondb_owner:npg_RTmGB4Yf5Fvu@ep-spring-breeze-aglp3gi5-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+                        - name: API_URL
+                          value: "https://api.moviedb.com"
                         - name: PORT
                           value: "3000"
                         - name: NODE_ENV
