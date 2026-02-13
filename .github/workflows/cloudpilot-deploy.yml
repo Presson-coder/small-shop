@@ -1,4 +1,4 @@
-        name: CloudPilot Deploy - movie-app-ai-scale-test
+        name: CloudPilot Deploy - small-shop-app-demo
 
         on:
           workflow_dispatch:
@@ -10,11 +10,11 @@
 
         env:
           AWS_REGION: eu-north-1
-          ECR_REGISTRY: 077451504038.dkr.ecr.eu-north-1.amazonaws.com
-          ECR_REPOSITORY: movie-app-ai-scale-test
+          ECR_REGISTRY: 298921514077.dkr.ecr.eu-north-1.amazonaws.com
+          ECR_REPOSITORY: small-shop-app-demo
           EKS_CLUSTER_NAME: dev-cluster
           K8S_NAMESPACE: dev
-          APP_NAME: movie-app-ai-scale-test
+          APP_NAME: small-shop-app-demo
 
         jobs:
           build-and-deploy:
