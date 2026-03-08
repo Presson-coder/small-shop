@@ -10,7 +10,7 @@
 
         env:
           AWS_REGION: eu-north-1
-          ECR_REGISTRY: 669729069839.dkr.ecr.eu-north-1.amazonaws.com
+          ECR_REGISTRY: 715841370494.dkr.ecr.eu-north-1.amazonaws.com
           ECR_REPOSITORY: small-shop-app-demo
           EKS_CLUSTER_NAME: dev-cluster
           K8S_NAMESPACE: dev
