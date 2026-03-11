@@ -1,4 +1,4 @@
-        name: CloudPilot Deploy - store
+        name: CloudPilot Deploy - tm-shop
 
         on:
           workflow_dispatch:
@@ -11,10 +11,10 @@
         env:
           AWS_REGION: eu-north-1
           ECR_REGISTRY: 715841370494.dkr.ecr.eu-north-1.amazonaws.com
-          ECR_REPOSITORY: store
+          ECR_REPOSITORY: tm-shop
           EKS_CLUSTER_NAME: dev-cluster
           K8S_NAMESPACE: dev
-          APP_NAME: store
+          APP_NAME: tm-shop
 
         jobs:
           build-and-deploy:
