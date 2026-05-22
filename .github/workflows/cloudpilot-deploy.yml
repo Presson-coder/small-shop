@@ -1,4 +1,4 @@
-        name: CloudPilot Deploy - deployment-tes-app
+        name: CloudPilot Deploy - new-test-app
 
         on:
           workflow_dispatch:
@@ -11,10 +11,10 @@
         env:
           AWS_REGION: eu-north-1
           ECR_REGISTRY: 715841370494.dkr.ecr.eu-north-1.amazonaws.com
-          ECR_REPOSITORY: deployment-tes-app
-          EKS_CLUSTER_NAME: production
+          ECR_REPOSITORY: new-test-app
+          EKS_CLUSTER_NAME: staging
           K8S_NAMESPACE: dev
-          APP_NAME: deployment-tes-app
+          APP_NAME: new-test-app
 
         jobs:
           build-and-deploy:
